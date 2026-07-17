@@ -1,0 +1,13 @@
+# Rose City Shea Body Lotion
+
+Title: Rose City Shea Body Lotion
+Price: 1.00 USD
+Cover: /home/tankisompela/Projects/rose-city-store/public/body-lotion-300x300.jpg
+Description: Rich, nourishing shea body lotion for deep hydration. Leaves skin feeling soft and smooth all day.
+
+SKU: LOTION-001
+Weight: 0.25 kg
+Track inventory: Yes
+Inventory: 40
+Variations: No
+Visibility: Unlisted

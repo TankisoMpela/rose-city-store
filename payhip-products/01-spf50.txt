@@ -1,0 +1,13 @@
+# Rose City Daily Defence SPF50
+
+Title: Rose City Daily Defence SPF50
+Price: 1.00 USD
+Cover: /home/tankisompela/Projects/rose-city-store/public/sunscreen-300x300.jpg
+Description: Broad-spectrum SPF50 sunscreen that protects against harsh African sun. Lightweight, non-comedogenic formula with aloe vera.
+
+SKU: SPF50-001
+Weight: 0.1 kg
+Track inventory: Yes
+Inventory: 50
+Variations: No
+Visibility: Unlisted

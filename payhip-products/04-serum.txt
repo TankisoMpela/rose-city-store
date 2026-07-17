@@ -1,0 +1,13 @@
+# Rose City Hyaluronic Acid Serum
+
+Title: Rose City Hyaluronic Acid Serum
+Price: 0.00 USD (Free)
+Cover: /home/tankisompela/Projects/rose-city-store/public/face-serum-300x300.jpg
+Description: Advanced hyaluronic acid serum for intense hydration. Plumps and smooths for a youthful glow.
+
+SKU: SERUM-001
+Weight: 0.1 kg
+Track inventory: Yes
+Inventory: 35
+Variations: No
+Visibility: Unlisted

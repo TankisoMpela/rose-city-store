@@ -1,0 +1,13 @@
+# Rose City Argan Hair Oil
+
+Title: Rose City Argan Hair Oil
+Price: 0.00 USD (Free)
+Cover: /home/tankisompela/Projects/rose-city-store/public/hair-oil-300x300.jpg
+Description: Pure argan oil for silky, nourished hair. Restores shine and reduces frizz for all hair types.
+
+SKU: HAIR-001
+Weight: 0.15 kg
+Track inventory: Yes
+Inventory: 45
+Variations: No
+Visibility: Unlisted

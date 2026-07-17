@@ -1,0 +1,336 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { useCartStore } from '@/lib/store/cart';
+import { useDemoOrdersStore } from '@/lib/store/demo-orders';
+import { formatPrice } from '@/lib/utils';
+import { createClient } from '@/lib/supabase/client';
+import { isDemoMode } from '@/lib/mock-data';
+
+export default function CheckoutPage() {
+  const router = useRouter();
+  const [mounted, setMounted] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const { items, getSubtotal, clearCart } = useCartStore();
+  const addOrder = useDemoOrdersStore((state) => state.addOrder);
+
+  const [form, setForm] = useState({
+    email: '',
+    name: '',
+    address: '',
+    city: '',
+    zip: '',
+    phone: '',
+    payment: 'paypal',
+  });
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const subtotal = mounted ? getSubtotal() : 0;
+  const shipping = subtotal >= 50 ? 0 : 5.99;
+  const codFee = form.payment === 'cod' ? 49.54 : 0;
+  const total = subtotal + shipping + codFee;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    if (isDemoMode()) {
+      // Create demo order
+      const order = addOrder({
+        status: 'processing',
+        payment_status: form.payment === 'cod' ? 'pending' : 'paid',
+        payment_method: form.payment,
+        customer_email: form.email,
+        customer_name: form.name,
+        shipping_address: `${form.address}, ${form.city} ${form.zip}`,
+        items: items.map((item) => ({
+          name: item.product.name + (item.variant ? ` - ${item.variant.name}` : ''),
+          quantity: item.quantity,
+          price: item.variant?.price ?? item.product.price,
+        })),
+        subtotal,
+        shipping,
+        total,
+      });
+
+      clearCart();
+      router.push(`/checkout/success?order=${order.id}`);
+    } else {
+      try {
+        const supabase = createClient();
+        const { data: userData } = await supabase.auth.getUser();
+        const user = userData?.user;
+
+        // 1. Insert order with guest details in notes
+        const { data: order, error: orderError } = await supabase
+          .from('orders')
+          .insert({
+            user_id: user?.id || null,
+            order_number: `RC-${Date.now().toString().slice(-8)}`,
+            status: 'pending',
+            payment_status: 'pending',
+            payment_method: form.payment,
+            subtotal,
+            shipping_cost: shipping,
+            tax: 0,
+            total,
+            notes: `Name: ${form.name}\nEmail: ${form.email}\nPhone: ${form.phone || ''}\nAddress: ${form.address}, ${form.city} ${form.zip}`,
+          })
+          .select()
+          .single();
+
+        if (orderError || !order) {
+          throw new Error(orderError?.message || 'Failed to create database order');
+        }
+
+        // Map mock string IDs to database UUIDs
+        const productIdMap: Record<string, string> = {
+          'prod-spf50': '20000000-0000-0000-0000-000000000001',
+          'prod-brush': '20000000-0000-0000-0000-000000000002',
+          'prod-lotion': '20000000-0000-0000-0000-000000000003',
+          'prod-serum': '20000000-0000-0000-0000-000000000004',
+          'prod-hair': '20000000-0000-0000-0000-000000000005',
+          'prod-perfume': '20000000-0000-0000-0000-000000000006',
+        };
+
+        // 2. Insert order items
+        const orderItems = items.map((item) => {
+          const dbProductId = productIdMap[item.product.id] || item.product.id;
+          return {
+            order_id: order.id,
+            product_id: dbProductId,
+            variant_id: item.variant?.id || null,
+            quantity: item.quantity,
+            unit_price: item.variant?.price ?? item.product.price,
+            total_price: (item.variant?.price ?? item.product.price) * item.quantity,
+            product_name: item.product.name,
+            variant_name: item.variant?.name || null,
+          };
+        });
+
+        const { error: itemsError } = await supabase
+          .from('order_items')
+          .insert(orderItems);
+
+        if (itemsError) {
+          throw new Error(itemsError.message || 'Failed to create order items');
+        }
+
+        // 3. Complete checkout or redirect
+        if (form.payment === 'paypal') {
+          router.push(`/checkout/paypal?orderId=${order.id}`);
+        } else if (form.payment === 'stripe') {
+          const res = await fetch('/api/checkout/stripe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ orderId: order.id }),
+          });
+          const session = await res.json();
+          if (session.url) {
+            router.push(session.url);
+          } else {
+            throw new Error(session.error || 'Failed to create Stripe checkout session');
+          }
+        } else if (form.payment === 'cod') {
+          // COD updates order to processing status
+          await supabase
+            .from('orders')
+            .update({ status: 'processing' })
+            .eq('id', order.id);
+
+          clearCart();
+          router.push(`/checkout/success?orderId=${order.id}`);
+        }
+      } catch (err: any) {
+        console.error('Checkout database error:', err);
+        alert(err.message || 'An error occurred during checkout');
+        setLoading(false);
+      }
+    }
+  };
+
+  const isValid = form.email && form.name && form.address && form.city && form.zip;
+
+  if (!mounted) {
+    return (
+      <main className="max-w-2xl mx-auto px-4 py-8">
+        <p className="text-gray-500">Loading...</p>
+      </main>
+    );
+  }
+
+  if (items.length === 0) {
+    return (
+      <main className="max-w-2xl mx-auto px-4 py-8">
+        <div className="text-center py-12">
+          <p className="text-gray-500 mb-4">Your cart is empty</p>
+          <Link href="/" className="text-blue-600 hover:underline">
+            Back to store
+          </Link>
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="max-w-2xl mx-auto px-4 py-8">
+      <h1 className="text-xl font-semibold text-gray-900 mb-6">Checkout</h1>
+
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Contact */}
+        <section>
+          <h2 className="text-sm font-medium text-gray-700 mb-3">Contact</h2>
+          <input
+            type="email"
+            placeholder="Email"
+            value={form.email}
+            onChange={(e) => setForm({ ...form, email: e.target.value })}
+            required
+            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-gray-400"
+          />
+        </section>
+
+        {/* Shipping */}
+        <section>
+          <h2 className="text-sm font-medium text-gray-700 mb-3">Shipping</h2>
+          <div className="space-y-3">
+            <input
+              type="text"
+              placeholder="Full name"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              required
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-gray-400"
+            />
+            <input
+              type="text"
+              placeholder="Address"
+              value={form.address}
+              onChange={(e) => setForm({ ...form, address: e.target.value })}
+              required
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-gray-400"
+            />
+            <div className="grid grid-cols-2 gap-3">
+              <input
+                type="text"
+                placeholder="City"
+                value={form.city}
+                onChange={(e) => setForm({ ...form, city: e.target.value })}
+                required
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-gray-400"
+              />
+              <input
+                type="text"
+                placeholder="ZIP code"
+                value={form.zip}
+                onChange={(e) => setForm({ ...form, zip: e.target.value })}
+                required
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-gray-400"
+              />
+            </div>
+            <input
+              type="tel"
+              placeholder="Phone (optional)"
+              value={form.phone}
+              onChange={(e) => setForm({ ...form, phone: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-gray-400"
+            />
+          </div>
+        </section>
+
+        {/* Payment */}
+        <section>
+          <h2 className="text-sm font-medium text-gray-700 mb-3">Payment</h2>
+          <div className="space-y-2">
+            {[
+              { id: 'paypal', label: 'PayPal' },
+              { id: 'cod', label: 'Cash on delivery (+ R49.54)' },
+            ].map((opt) => (
+              <label
+                key={opt.id}
+                className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${
+                  form.payment === opt.id ? 'border-black bg-gray-50' : 'border-gray-200'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="payment"
+                  value={opt.id}
+                  checked={form.payment === opt.id}
+                  onChange={(e) => setForm({ ...form, payment: e.target.value })}
+                  className="sr-only"
+                />
+                <span className={`w-4 h-4 rounded-full border-2 mr-3 flex items-center justify-center ${
+                  form.payment === opt.id ? 'border-black' : 'border-gray-300'
+                }`}>
+                  {form.payment === opt.id && <span className="w-2 h-2 bg-black rounded-full" />}
+                </span>
+                <span className="text-sm">{opt.label}</span>
+              </label>
+            ))}
+          </div>
+        </section>
+
+        {/* Summary */}
+        <section className="border-t border-gray-100 pt-6">
+          <h2 className="text-sm font-medium text-gray-700 mb-3">Summary</h2>
+
+          <div className="space-y-2 mb-4">
+            {items.map((item) => (
+              <div key={item.id} className="flex justify-between text-sm">
+                <span className="text-gray-600">
+                  {item.product.name} x {item.quantity}
+                </span>
+                <span>{formatPrice((item.variant?.price ?? item.product.price) * item.quantity)}</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="space-y-1 text-sm border-t border-gray-100 pt-3">
+            <div className="flex justify-between">
+              <span className="text-gray-500">Subtotal</span>
+              <span>{formatPrice(subtotal)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">Shipping</span>
+              <span>{shipping === 0 ? 'Free' : formatPrice(shipping)}</span>
+            </div>
+            {form.payment === 'cod' && (
+              <div className="flex justify-between">
+                <span className="text-gray-500">COD fee</span>
+                <span>{formatPrice(49.54)}</span>
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-between font-semibold text-lg mt-3 pt-3 border-t border-gray-200">
+            <span>Total</span>
+            <span>{formatPrice(total)}</span>
+          </div>
+        </section>
+
+        {/* Submit */}
+        <button
+          type="submit"
+          disabled={!isValid || loading}
+          className={`w-full py-3 rounded-lg font-medium text-sm transition-all ${
+            isValid && !loading
+              ? 'bg-black text-white hover:bg-gray-800 active:scale-[0.99]'
+              : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+          }`}
+        >
+          {loading ? 'Processing...' : 'Complete order'}
+        </button>
+
+        <p className="text-xs text-center text-gray-400">
+          By clicking "Complete order" you agree to our terms and conditions
+        </p>
+      </form>
+    </main>
+  );
+}

@@ -1,0 +1,13 @@
+# Rose City Professional Makeup Brush Set
+
+Title: Rose City Professional Makeup Brush Set
+Price: 1.00 USD
+Cover: /home/tankisompela/Projects/rose-city-store/public/makeup-brush2-300x300.jpg
+Description: Complete professional makeup brush set. Premium synthetic bristles for flawless application.
+
+SKU: BRUSH-001
+Weight: 0.2 kg
+Track inventory: Yes
+Inventory: 30
+Variations: No
+Visibility: Unlisted

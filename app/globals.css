@@ -1,0 +1,32 @@
+@import "tailwindcss";
+
+@theme {
+  --color-accent: #907E99;
+  --color-accent-soft: #D9BEE7;
+  --color-deep-contrast: #2A2A2A;
+  --color-surface: #F4F4F4;
+  --color-promo-pink: #EEE4E5;
+  --color-promo-mint: #BBD3D2;
+  --color-promo-lavender: #E0DDE8;
+  --color-muted-contrast: #5E5E5E;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background-color: var(--color-surface);
+  -webkit-font-smoothing: antialiased;
+}
+
+@keyframes toast-in {
+  from { transform: translateY(100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@keyframes toast-out {
+  from { transform: translateY(0); opacity: 1; }
+  to { transform: translateY(100%); opacity: 0; }
+}
+.toast-enter { animation: toast-in 0.2s ease-out; }
+.toast-exit { animation: toast-out 0.2s ease-in forwards; }

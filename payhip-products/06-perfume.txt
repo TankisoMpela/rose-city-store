@@ -1,0 +1,13 @@
+# Rose City Eau de Parfum – Free State Bloom
+
+Title: Rose City Eau de Parfum – Free State Bloom
+Price: 0.00 USD (Free)
+Cover: /home/tankisompela/Projects/rose-city-store/public/perfume-300x300.jpg
+Description: A captivating floral fragrance inspired by the Free State landscape. Notes of freesia, jasmine, and rose.
+
+SKU: PERFUME-001
+Weight: 0.15 kg
+Track inventory: Yes
+Inventory: 20
+Variations: No
+Visibility: Unlisted
