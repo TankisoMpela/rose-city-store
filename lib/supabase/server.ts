@@ -75,9 +75,12 @@ export async function createClient() {
         },
         setAll(cookiesToSet) {
           try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            );
+            cookiesToSet.forEach(({ name, value, options }) => {
+              const res = cookieStore.set(name, value, options);
+              if (res instanceof Promise) {
+                res.catch(() => {});
+              }
+            });
           } catch {
             // Server Component
           }
@@ -120,9 +123,12 @@ export async function createServiceClient() {
         },
         setAll(cookiesToSet) {
           try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            );
+            cookiesToSet.forEach(({ name, value, options }) => {
+              const res = cookieStore.set(name, value, options);
+              if (res instanceof Promise) {
+                res.catch(() => {});
+              }
+            });
           } catch {
             // Server Component
           }

@@ -31,15 +31,25 @@ export async function updateSession(request: NextRequest) {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) =>
-            request.cookies.set(name, value)
-          );
-          supabaseResponse = NextResponse.next({
-            request,
-          });
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
-          );
+          try {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              const res = request.cookies.set(name, value);
+              if (res instanceof Promise) {
+                res.catch(() => {});
+              }
+            });
+            supabaseResponse = NextResponse.next({
+              request,
+            });
+            cookiesToSet.forEach(({ name, value, options }) => {
+              const res = supabaseResponse.cookies.set(name, value, options);
+              if (res instanceof Promise) {
+                res.catch(() => {});
+              }
+            });
+          } catch (e) {
+            // Ignore cookie set errors in middleware context
+          }
         },
       },
     }
