@@ -26,8 +26,58 @@ export default function CheckoutPage() {
     payment: 'paypal',
   });
 
+  const [autofilled, setAutofilled] = useState(false);
+
   useEffect(() => {
     setMounted(true);
+
+    // Auto-fill checkout form from logged-in user's profile and last order
+    const prefillFromUser = async () => {
+      if (isDemoMode()) return;
+      try {
+        const supabase = createClient();
+        const { data: userData } = await supabase.auth.getUser();
+        const user = userData?.user;
+        if (!user) return;
+
+        // Start with name + email from Google/Supabase profile
+        const prefill: Partial<typeof form> = {
+          email: user.email ?? '',
+          name: user.user_metadata?.full_name ?? user.user_metadata?.name ?? '',
+        };
+
+        // Try to load address details from the most recent completed order
+        const { data: lastOrder } = await supabase
+          .from('orders')
+          .select('notes, customer_email')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (lastOrder?.notes) {
+          // Parse saved guest details from order notes
+          const phoneMatch = lastOrder.notes.match(/Phone:\s*(.+)/);
+          const addressMatch = lastOrder.notes.match(/Address:\s*(.+)/);
+          const cityMatch = lastOrder.notes.match(/City:\s*(.+)/);
+          const zipMatch = lastOrder.notes.match(/Zip:\s*(.+)/);
+
+          if (phoneMatch) prefill.phone = phoneMatch[1].trim();
+          if (addressMatch) prefill.address = addressMatch[1].trim();
+          if (cityMatch) prefill.city = cityMatch[1].trim();
+          if (zipMatch) prefill.zip = zipMatch[1].trim();
+        }
+
+        setForm((prev) => ({ ...prev, ...prefill }));
+        if (Object.keys(prefill).some((k) => prefill[k as keyof typeof prefill])) {
+          setAutofilled(true);
+        }
+      } catch (e) {
+        // Silently fail — form stays blank for guests
+      }
+    };
+
+    prefillFromUser();
   }, []);
 
   const subtotal = mounted ? getSubtotal() : 0;
@@ -180,6 +230,15 @@ export default function CheckoutPage() {
   return (
     <main className="max-w-2xl mx-auto px-4 py-8">
       <h1 className="text-xl font-semibold text-gray-900 mb-6">Checkout</h1>
+
+      {autofilled && (
+        <div className="flex items-center gap-2 bg-green-50 border border-green-200 text-green-700 text-sm px-4 py-3 rounded-lg mb-6">
+          <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+          Your details have been auto-filled from your account. Please review before completing your order.
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Contact */}
