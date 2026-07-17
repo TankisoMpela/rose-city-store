@@ -92,5 +92,33 @@ export async function updateSession(request: NextRequest) {
     }
   }
 
+  // ── Portfolio Entry Gate ──────────────────────────────────────────────────
+  // Redirect unauthenticated first-time visitors to /login when they land on
+  // the storefront. After they sign in OR click "Browse as guest", a cookie
+  // (rcb_seen) is set so they won't be redirected again during this session.
+  const storePaths = ['/', '/products', '/product', '/cart', '/checkout'];
+  const isStorePath = storePaths.some(
+    (p) =>
+      request.nextUrl.pathname === p ||
+      request.nextUrl.pathname.startsWith(p + '/')
+  );
+  const isAuthPath =
+    request.nextUrl.pathname.startsWith('/login') ||
+    request.nextUrl.pathname.startsWith('/register') ||
+    request.nextUrl.pathname.startsWith('/auth') ||
+    request.nextUrl.pathname.startsWith('/forgot-password');
+
+  if (!user && isStorePath && !isAuthPath) {
+    const hasSeen = request.cookies.get('rcb_seen');
+    if (!hasSeen) {
+      const url = request.nextUrl.clone();
+      url.pathname = '/login';
+      const redirect = NextResponse.redirect(url);
+      // Set a session cookie so they only hit the gate once per browser session
+      redirect.cookies.set('rcb_seen', '1', { path: '/', sameSite: 'lax' });
+      return redirect;
+    }
+  }
+
   return supabaseResponse;
 }
