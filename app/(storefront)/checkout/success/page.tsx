@@ -3,10 +3,8 @@
 import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { useDemoOrdersStore, DemoOrder } from '@/lib/store/demo-orders';
 import { formatPrice } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
-import { isDemoMode } from '@/lib/mock-data';
 
 function CheckoutSuccessContent() {
   const searchParams = useSearchParams();
@@ -14,7 +12,6 @@ function CheckoutSuccessContent() {
   const [order, setOrder] = useState<any>(null);
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(true);
-  const getOrder = useDemoOrdersStore((state) => state.getOrder);
 
   useEffect(() => {
     setMounted(true);
@@ -23,54 +20,48 @@ function CheckoutSuccessContent() {
       return;
     }
 
-    if (isDemoMode()) {
-      const foundOrder = getOrder(orderId);
-      setOrder(foundOrder || null);
-      setLoading(false);
-    } else {
-      const loadSupabaseOrder = async () => {
-        try {
-          const supabase = createClient();
-          const { data: ord, error: ordError } = await supabase
-            .from('orders')
-            .select(`
-              *,
-              items:order_items(*)
-            `)
-            .eq('id', orderId)
-            .single();
+    const loadSupabaseOrder = async () => {
+      try {
+        const supabase = createClient();
+        const { data: ord, error: ordError } = await supabase
+          .from('orders')
+          .select(`
+            *,
+            items:order_items(*)
+          `)
+          .eq('id', orderId)
+          .single();
 
-          if (ordError) throw ordError;
+        if (ordError) throw ordError;
 
-          if (ord) {
-            setOrder({
-              id: ord.id,
-              order_number: ord.order_number,
-              customer_email: ord.notes?.match(/Email: (.*?)\n/)?.[1] || 'customer@example.com',
-              customer_name: ord.notes?.match(/Name: (.*?)\n/)?.[1] || 'Customer',
-              shipping_address: ord.notes?.match(/Address: ([\s\S]*?)$/)?.[1] || ord.notes || 'Default Address',
-              payment_status: ord.payment_status,
-              payment_method: ord.payment_method,
-              subtotal: parseFloat(ord.subtotal),
-              shipping: parseFloat(ord.shipping_cost),
-              total: parseFloat(ord.total),
-              created_at: ord.created_at,
-              items: ord.items.map((i: any) => ({
-                name: i.product_name + (i.variant_name ? ` - ${i.variant_name}` : ''),
-                quantity: i.quantity,
-                price: parseFloat(i.unit_price),
-              })),
-            });
-          }
-        } catch (err) {
-          console.error('Failed to load Supabase order:', err);
-        } finally {
-          setLoading(false);
+        if (ord) {
+          setOrder({
+            id: ord.id,
+            order_number: ord.order_number,
+            customer_email: ord.notes?.match(/Email: (.*?)\n/)?.[1] || 'customer@example.com',
+            customer_name: ord.notes?.match(/Name: (.*?)\n/)?.[1] || 'Customer',
+            shipping_address: ord.notes?.match(/Address: ([\s\S]*?)$/)?.[1] || ord.notes || 'Default Address',
+            payment_status: ord.payment_status,
+            payment_method: ord.payment_method,
+            subtotal: parseFloat(ord.subtotal),
+            shipping: parseFloat(ord.shipping_cost),
+            total: parseFloat(ord.total),
+            created_at: ord.created_at,
+            items: ord.items.map((i: any) => ({
+              name: i.product_name + (i.variant_name ? ` - ${i.variant_name}` : ''),
+              quantity: i.quantity,
+              price: parseFloat(i.unit_price),
+            })),
+          });
         }
-      };
-      loadSupabaseOrder();
-    }
-  }, [orderId, getOrder]);
+      } catch (err) {
+        console.error('Failed to load Supabase order:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadSupabaseOrder();
+  }, [orderId]);
 
   if (!mounted || loading) {
     return (

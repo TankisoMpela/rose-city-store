@@ -32,12 +32,6 @@ import {
 import { useCartStore } from '@/lib/store/cart';
 import type { Profile } from '@/types';
 
-function isDemoMode(): boolean {
-  const url = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').trim().replace(/\\n/g, '').replace(/\n/g, '');
-  return !url ||
-         url === 'https://placeholder.supabase.co' ||
-         url.includes('placeholder');
-}
 
 export default function Header() {
   const router = useRouter();
@@ -51,11 +45,6 @@ export default function Header() {
 
   useEffect(() => {
     setMounted(true);
-
-    // Skip auth in demo mode
-    if (isDemoMode()) {
-      return;
-    }
 
     import('@/lib/supabase/client').then(({ createClient }) => {
       const supabase = createClient();
@@ -85,11 +74,9 @@ export default function Header() {
   };
 
   const handleLogout = async () => {
-    if (!isDemoMode()) {
-      const { createClient } = await import('@/lib/supabase/client');
-      const supabase = createClient();
-      await supabase.auth.signOut();
-    }
+    const { createClient } = await import('@/lib/supabase/client');
+    const supabase = createClient();
+    await supabase.auth.signOut();
     setUser(null);
     handleMenuClose();
     router.refresh();

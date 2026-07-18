@@ -4,17 +4,14 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useCartStore } from '@/lib/store/cart';
-import { useDemoOrdersStore } from '@/lib/store/demo-orders';
 import { formatPrice } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
-import { isDemoMode } from '@/lib/mock-data';
 
 export default function CheckoutPage() {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(false);
   const { items, getSubtotal, clearCart } = useCartStore();
-  const addOrder = useDemoOrdersStore((state) => state.addOrder);
 
   const [form, setForm] = useState({
     email: '',
@@ -33,7 +30,6 @@ export default function CheckoutPage() {
 
     // Auto-fill checkout form from logged-in user's profile and last order
     const prefillFromUser = async () => {
-      if (isDemoMode()) return;
       try {
         const supabase = createClient();
         const { data: userData } = await supabase.auth.getUser();
@@ -89,118 +85,95 @@ export default function CheckoutPage() {
     e.preventDefault();
     setLoading(true);
 
-    if (isDemoMode()) {
-      // Create demo order
-      const order = addOrder({
-        status: 'processing',
-        payment_status: form.payment === 'cod' ? 'pending' : 'paid',
-        payment_method: form.payment,
-        customer_email: form.email,
-        customer_name: form.name,
-        shipping_address: `${form.address}, ${form.city} ${form.zip}`,
-        items: items.map((item) => ({
-          name: item.product.name + (item.variant ? ` - ${item.variant.name}` : ''),
+    try {
+      const supabase = createClient();
+      const { data: userData } = await supabase.auth.getUser();
+      const user = userData?.user;
+
+      // 1. Insert order with guest details in notes
+      const { data: order, error: orderError } = await supabase
+        .from('orders')
+        .insert({
+          user_id: user?.id || null,
+          order_number: `RC-${Date.now().toString().slice(-8)}`,
+          status: 'pending',
+          payment_status: 'pending',
+          payment_method: form.payment,
+          subtotal,
+          shipping_cost: shipping,
+          tax: 0,
+          total,
+          notes: `Name: ${form.name}\nEmail: ${form.email}\nPhone: ${form.phone || ''}\nAddress: ${form.address}, ${form.city} ${form.zip}`,
+        })
+        .select()
+        .single();
+
+      if (orderError || !order) {
+        throw new Error(orderError?.message || 'Failed to create database order');
+      }
+
+      // Map mock string IDs to database UUIDs
+      const productIdMap: Record<string, string> = {
+        'prod-spf50': '20000000-0000-0000-0000-000000000001',
+        'prod-brush': '20000000-0000-0000-0000-000000000002',
+        'prod-lotion': '20000000-0000-0000-0000-000000000003',
+        'prod-serum': '20000000-0000-0000-0000-000000000004',
+        'prod-hair': '20000000-0000-0000-0000-000000000005',
+        'prod-perfume': '20000000-0000-0000-0000-000000000006',
+      };
+
+      // 2. Insert order items
+      const orderItems = items.map((item) => {
+        const dbProductId = productIdMap[item.product.id] || item.product.id;
+        return {
+          order_id: order.id,
+          product_id: dbProductId,
+          variant_id: item.variant?.id || null,
           quantity: item.quantity,
-          price: item.variant?.price ?? item.product.price,
-        })),
-        subtotal,
-        shipping,
-        total,
+          unit_price: item.variant?.price ?? item.product.price,
+          total_price: (item.variant?.price ?? item.product.price) * item.quantity,
+          product_name: item.product.name,
+          variant_name: item.variant?.name || null,
+        };
       });
 
-      clearCart();
-      router.push(`/checkout/success?order=${order.id}`);
-    } else {
-      try {
-        const supabase = createClient();
-        const { data: userData } = await supabase.auth.getUser();
-        const user = userData?.user;
+      const { error: itemsError } = await supabase
+        .from('order_items')
+        .insert(orderItems);
 
-        // 1. Insert order with guest details in notes
-        const { data: order, error: orderError } = await supabase
-          .from('orders')
-          .insert({
-            user_id: user?.id || null,
-            order_number: `RC-${Date.now().toString().slice(-8)}`,
-            status: 'pending',
-            payment_status: 'pending',
-            payment_method: form.payment,
-            subtotal,
-            shipping_cost: shipping,
-            tax: 0,
-            total,
-            notes: `Name: ${form.name}\nEmail: ${form.email}\nPhone: ${form.phone || ''}\nAddress: ${form.address}, ${form.city} ${form.zip}`,
-          })
-          .select()
-          .single();
-
-        if (orderError || !order) {
-          throw new Error(orderError?.message || 'Failed to create database order');
-        }
-
-        // Map mock string IDs to database UUIDs
-        const productIdMap: Record<string, string> = {
-          'prod-spf50': '20000000-0000-0000-0000-000000000001',
-          'prod-brush': '20000000-0000-0000-0000-000000000002',
-          'prod-lotion': '20000000-0000-0000-0000-000000000003',
-          'prod-serum': '20000000-0000-0000-0000-000000000004',
-          'prod-hair': '20000000-0000-0000-0000-000000000005',
-          'prod-perfume': '20000000-0000-0000-0000-000000000006',
-        };
-
-        // 2. Insert order items
-        const orderItems = items.map((item) => {
-          const dbProductId = productIdMap[item.product.id] || item.product.id;
-          return {
-            order_id: order.id,
-            product_id: dbProductId,
-            variant_id: item.variant?.id || null,
-            quantity: item.quantity,
-            unit_price: item.variant?.price ?? item.product.price,
-            total_price: (item.variant?.price ?? item.product.price) * item.quantity,
-            product_name: item.product.name,
-            variant_name: item.variant?.name || null,
-          };
-        });
-
-        const { error: itemsError } = await supabase
-          .from('order_items')
-          .insert(orderItems);
-
-        if (itemsError) {
-          throw new Error(itemsError.message || 'Failed to create order items');
-        }
-
-        // 3. Complete checkout or redirect
-        if (form.payment === 'paypal') {
-          router.push(`/checkout/paypal?orderId=${order.id}`);
-        } else if (form.payment === 'stripe') {
-          const res = await fetch('/api/checkout/stripe', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ orderId: order.id }),
-          });
-          const session = await res.json();
-          if (session.url) {
-            router.push(session.url);
-          } else {
-            throw new Error(session.error || 'Failed to create Stripe checkout session');
-          }
-        } else if (form.payment === 'cod') {
-          // COD updates order to processing status
-          await supabase
-            .from('orders')
-            .update({ status: 'processing' })
-            .eq('id', order.id);
-
-          clearCart();
-          router.push(`/checkout/success?orderId=${order.id}`);
-        }
-      } catch (err: any) {
-        console.error('Checkout database error:', err);
-        alert(err.message || 'An error occurred during checkout');
-        setLoading(false);
+      if (itemsError) {
+        throw new Error(itemsError.message || 'Failed to create order items');
       }
+
+      // 3. Complete checkout or redirect
+      if (form.payment === 'paypal') {
+        router.push(`/checkout/paypal?orderId=${order.id}`);
+      } else if (form.payment === 'stripe') {
+        const res = await fetch('/api/checkout/stripe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderId: order.id }),
+        });
+        const session = await res.json();
+        if (session.url) {
+          router.push(session.url);
+        } else {
+          throw new Error(session.error || 'Failed to create Stripe checkout session');
+        }
+      } else if (form.payment === 'cod') {
+        // COD updates order to processing status
+        await supabase
+          .from('orders')
+          .update({ status: 'processing' })
+          .eq('id', order.id);
+
+        clearCart();
+        router.push(`/checkout/success?orderId=${order.id}`);
+      }
+    } catch (err: any) {
+      console.error('Checkout database error:', err);
+      alert(err.message || 'An error occurred during checkout');
+      setLoading(false);
     }
   };
 
