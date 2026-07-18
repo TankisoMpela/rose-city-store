@@ -2,10 +2,49 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 export async function updateSession(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({
-    request,
-  });
+  let supabaseResponse = NextResponse.next({ request });
 
+  const pathname = request.nextUrl.pathname;
+
+  const isAuthPath =
+    pathname.startsWith('/login') ||
+    pathname.startsWith('/register') ||
+    pathname.startsWith('/auth') ||
+    pathname.startsWith('/forgot-password');
+
+  const isProtectedAdminOrAccount =
+    pathname.startsWith('/dashboard') || pathname.startsWith('/account');
+
+  const isStorePath =
+    pathname === '/' ||
+    pathname.startsWith('/products') ||
+    pathname.startsWith('/product/') ||
+    pathname.startsWith('/cart') ||
+    pathname.startsWith('/checkout');
+
+  // ── Portfolio Entry Gate (INSTANT — no network call) ──────────────────────
+  // Check if a Supabase session cookie exists locally as a fast heuristic.
+  // Cookie name format: sb-<project-ref>-auth-token
+  const hasSupabaseSession = request.cookies.getAll().some(
+    (c) => c.name.startsWith('sb-') && c.name.endsWith('-auth-token') && c.value.length > 10
+  );
+  const hasSeen = request.cookies.get('rcb_seen');
+
+  if (!hasSupabaseSession && !hasSeen && isStorePath && !isAuthPath) {
+    const url = request.nextUrl.clone();
+    url.pathname = '/login';
+    const redirect = NextResponse.redirect(url);
+    // Set session cookie so they only hit the gate once
+    redirect.cookies.set('rcb_seen', '1', { path: '/', sameSite: 'lax' });
+    return redirect;
+  }
+
+  // ── Skip heavy auth check for routes that don't need it ──────────────────
+  if (!isProtectedAdminOrAccount) {
+    return supabaseResponse;
+  }
+
+  // ── Full auth check (network call) — only for /dashboard and /account ────
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -18,18 +57,12 @@ export async function updateSession(request: NextRequest) {
           try {
             cookiesToSet.forEach(({ name, value, options }) => {
               const res = request.cookies.set(name, value);
-              if (res instanceof Promise) {
-                res.catch(() => {});
-              }
+              if (res instanceof Promise) res.catch(() => {});
             });
-            supabaseResponse = NextResponse.next({
-              request,
-            });
+            supabaseResponse = NextResponse.next({ request });
             cookiesToSet.forEach(({ name, value, options }) => {
               const res = supabaseResponse.cookies.set(name, value, options);
-              if (res instanceof Promise) {
-                res.catch(() => {});
-              }
+              if (res instanceof Promise) res.catch(() => {});
             });
           } catch (e) {
             // Ignore cookie set errors in middleware context
@@ -39,20 +72,25 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
 
-  // Protect admin routes
-  if (request.nextUrl.pathname.startsWith('/dashboard')) {
+  // Protect /account
+  if (pathname.startsWith('/account') && !user) {
+    const url = request.nextUrl.clone();
+    url.pathname = '/login';
+    url.searchParams.set('redirect', pathname);
+    return NextResponse.redirect(url);
+  }
+
+  // Protect /dashboard
+  if (pathname.startsWith('/dashboard')) {
     if (!user) {
       const url = request.nextUrl.clone();
       url.pathname = '/login';
-      url.searchParams.set('redirect', request.nextUrl.pathname);
+      url.searchParams.set('redirect', pathname);
       return NextResponse.redirect(url);
     }
 
-    // Check if user is admin
     const { data: profile } = await supabase
       .from('profiles')
       .select('role')
@@ -63,44 +101,6 @@ export async function updateSession(request: NextRequest) {
       const url = request.nextUrl.clone();
       url.pathname = '/';
       return NextResponse.redirect(url);
-    }
-  }
-
-  // Protect account routes
-  if (request.nextUrl.pathname.startsWith('/account')) {
-    if (!user) {
-      const url = request.nextUrl.clone();
-      url.pathname = '/login';
-      url.searchParams.set('redirect', request.nextUrl.pathname);
-      return NextResponse.redirect(url);
-    }
-  }
-
-  // ── Portfolio Entry Gate ──────────────────────────────────────────────────
-  // Redirect unauthenticated first-time visitors to /login when they land on
-  // the storefront. After they sign in OR click "Browse as guest", a cookie
-  // (rcb_seen) is set so they won't be redirected again during this session.
-  const storePaths = ['/', '/products', '/product', '/cart', '/checkout'];
-  const isStorePath = storePaths.some(
-    (p) =>
-      request.nextUrl.pathname === p ||
-      request.nextUrl.pathname.startsWith(p + '/')
-  );
-  const isAuthPath =
-    request.nextUrl.pathname.startsWith('/login') ||
-    request.nextUrl.pathname.startsWith('/register') ||
-    request.nextUrl.pathname.startsWith('/auth') ||
-    request.nextUrl.pathname.startsWith('/forgot-password');
-
-  if (!user && isStorePath && !isAuthPath) {
-    const hasSeen = request.cookies.get('rcb_seen');
-    if (!hasSeen) {
-      const url = request.nextUrl.clone();
-      url.pathname = '/login';
-      const redirect = NextResponse.redirect(url);
-      // Set a session cookie so they only hit the gate once per browser session
-      redirect.cookies.set('rcb_seen', '1', { path: '/', sameSite: 'lax' });
-      return redirect;
     }
   }
 
