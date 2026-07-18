@@ -143,15 +143,15 @@ function LoginForm() {
               <button
                 onClick={handleGoogleLogin}
                 disabled={googleLoading}
-                className="w-full flex items-center justify-center gap-3 px-5 py-3.5 bg-white border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 shadow-sm hover:shadow-md hover:border-gray-300 transition-all duration-200 disabled:opacity-60"
+                className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-white border-2 border-[#907E99] rounded-xl text-base font-semibold text-[#2d1f33] shadow-md hover:shadow-lg hover:border-[#6b5a7a] hover:bg-[#faf8fc] transition-all duration-200 disabled:opacity-60"
               >
                 {googleLoading ? (
-                  <svg className="w-5 h-5 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5 animate-spin text-[#907E99]" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
                   </svg>
                 ) : (
-                  <svg width="20" height="20" viewBox="0 0 24 24">
+                  <svg width="22" height="22" viewBox="0 0 24 24">
                     <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v3.92h6.69c-.29 1.5-1.14 2.78-2.4 3.62v3.02h3.87c2.26-2.08 3.58-5.14 3.58-8.49z" />
                     <path fill="#34A853" d="M12 24c3.24 0 5.97-1.08 7.96-2.91l-3.87-3.02c-1.08.72-2.45 1.16-4.09 1.16-3.15 0-5.81-2.13-6.76-4.99H1.27v3.12C3.26 21.31 7.37 24 12 24z" />
                     <path fill="#FBBC05" d="M5.24 14.24a7.16 7.16 0 0 1 0-2.48V8.64H1.27a11.96 11.96 0 0 0 0 6.72l3.97-3.12z" />
@@ -163,24 +163,24 @@ function LoginForm() {
 
               {/* Divider */}
               <div className="flex items-center gap-3">
-                <div className="flex-1 h-px bg-gray-200" />
-                <span className="text-gray-400 text-xs">or</span>
-                <div className="flex-1 h-px bg-gray-200" />
+                <div className="flex-1 h-px bg-gray-300" />
+                <span className="text-gray-500 text-sm font-medium">or</span>
+                <div className="flex-1 h-px bg-gray-300" />
               </div>
 
               {/* Email option */}
               <button
                 onClick={() => setMode('email')}
-                className="w-full px-5 py-3.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:border-gray-300 hover:bg-white transition-all duration-200"
+                className="w-full px-6 py-4 border-2 border-gray-300 rounded-xl text-base font-semibold text-gray-700 bg-white hover:border-gray-400 hover:bg-gray-50 transition-all duration-200"
               >
                 Sign in with email
               </button>
 
               {/* Guest option */}
-              <div className="text-center pt-2">
+              <div className="text-center pt-3">
                 <Link
                   href="/"
-                  className="text-xs text-gray-400 hover:text-gray-600 underline underline-offset-2 transition-colors"
+                  className="text-sm font-medium text-gray-500 hover:text-[#907E99] underline underline-offset-4 transition-colors"
                 >
                   Browse as guest without signing in →
                 </Link>
