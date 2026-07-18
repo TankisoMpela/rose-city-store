@@ -12,12 +12,12 @@ export default function Footer() {
       </div>
       <div className="bg-accent py-3">
         <div className="max-w-6xl mx-auto px-4 flex flex-wrap items-center justify-center gap-6 text-white text-xs uppercase tracking-wider">
-          <Link href="#">Contact</Link>
-          <Link href="#">Returns</Link>
-          <Link href="#">Delivery</Link>
-          <Link href="#">Gift cards</Link>
-          <Link href="#">Manufacturers</Link>
-          <Link href="#">Privacy policy</Link>
+          <Link href="/info/contact">Contact</Link>
+          <Link href="/info/returns">Returns</Link>
+          <Link href="/info/delivery">Delivery</Link>
+          <Link href="/info/gift-cards">Gift cards</Link>
+          <Link href="/info/manufacturers">Manufacturers</Link>
+          <Link href="/info/privacy-policy">Privacy policy</Link>
         </div>
       </div>
       <div className="bg-deep-contrast text-white py-3">

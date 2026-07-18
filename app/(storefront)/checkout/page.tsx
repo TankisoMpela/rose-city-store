@@ -42,26 +42,41 @@ export default function CheckoutPage() {
           name: user.user_metadata?.full_name ?? user.user_metadata?.name ?? '',
         };
 
-        // Try to load address details from the most recent completed order
-        const { data: lastOrder } = await supabase
-          .from('orders')
-          .select('notes, customer_email')
+        // Try to load address details from default address in addresses table
+        const { data: defaultAddr } = await supabase
+          .from('addresses')
+          .select('*')
           .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
+          .eq('is_default', true)
           .maybeSingle();
 
-        if (lastOrder?.notes) {
-          // Parse saved guest details from order notes
-          const phoneMatch = lastOrder.notes.match(/Phone:\s*(.+)/);
-          const addressMatch = lastOrder.notes.match(/Address:\s*(.+)/);
-          const cityMatch = lastOrder.notes.match(/City:\s*(.+)/);
-          const zipMatch = lastOrder.notes.match(/Zip:\s*(.+)/);
+        if (defaultAddr) {
+          prefill.phone = defaultAddr.phone ?? '';
+          prefill.address = defaultAddr.address_line1 ?? '';
+          prefill.city = defaultAddr.city ?? '';
+          prefill.zip = defaultAddr.postal_code ?? '';
+        } else {
+          // Fallback to loading address details from the most recent completed order
+          const { data: lastOrder } = await supabase
+            .from('orders')
+            .select('notes, customer_email')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
 
-          if (phoneMatch) prefill.phone = phoneMatch[1].trim();
-          if (addressMatch) prefill.address = addressMatch[1].trim();
-          if (cityMatch) prefill.city = cityMatch[1].trim();
-          if (zipMatch) prefill.zip = zipMatch[1].trim();
+          if (lastOrder?.notes) {
+            // Parse saved guest details from order notes
+            const phoneMatch = lastOrder.notes.match(/Phone:\s*(.+)/);
+            const addressMatch = lastOrder.notes.match(/Address:\s*(.+)/);
+            const cityMatch = lastOrder.notes.match(/City:\s*(.+)/);
+            const zipMatch = lastOrder.notes.match(/Zip:\s*(.+)/);
+
+            if (phoneMatch) prefill.phone = phoneMatch[1].trim();
+            if (addressMatch) prefill.address = addressMatch[1].trim();
+            if (cityMatch) prefill.city = cityMatch[1].trim();
+            if (zipMatch) prefill.zip = zipMatch[1].trim();
+          }
         }
 
         setForm((prev) => ({ ...prev, ...prefill }));
@@ -110,6 +125,56 @@ export default function CheckoutPage() {
 
       if (orderError || !order) {
         throw new Error(orderError?.message || 'Failed to create database order');
+      }
+
+      // If logged in, save/update shipping address in addresses table
+      if (user) {
+        try {
+          const { data: existingAddr } = await supabase
+            .from('addresses')
+            .select('id')
+            .eq('user_id', user.id)
+            .eq('is_default', true)
+            .maybeSingle();
+
+          const addressData = {
+            user_id: user.id,
+            full_name: form.name,
+            address_line1: form.address,
+            city: form.city,
+            postal_code: form.zip,
+            country: 'South Africa',
+            phone: form.phone,
+            is_default: true,
+          };
+
+          if (existingAddr) {
+            await supabase
+              .from('addresses')
+              .update(addressData)
+              .eq('id', existingAddr.id);
+          } else {
+            await supabase
+              .from('addresses')
+              .insert(addressData);
+          }
+
+          // Also save phone number to profile if they don't have one
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('phone')
+            .eq('id', user.id)
+            .single();
+          if (profile && !profile.phone && form.phone) {
+            await supabase
+              .from('profiles')
+              .update({ phone: form.phone })
+              .eq('id', user.id);
+          }
+        } catch (addrErr) {
+          console.error('Failed to save default address:', addrErr);
+          // Don't crash checkout if address saving fails
+        }
       }
 
       // Map mock string IDs to database UUIDs
