@@ -40,13 +40,20 @@ function LoginForm() {
     setError(null);
     try {
       const supabase = createClient();
-      const { error } = await supabase.auth.signInWithOAuth({
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirect)}`,
+          skipBrowserRedirect: true,
         },
       });
       if (error) throw error;
+      if (data?.url) {
+        // Force a hard browser navigation — required for OAuth flows in Next.js App Router
+        window.location.href = data.url;
+      } else {
+        throw new Error('No redirect URL returned from Supabase');
+      }
     } catch (err: any) {
       setError(err.message || 'Error during Google sign in');
       setGoogleLoading(false);
